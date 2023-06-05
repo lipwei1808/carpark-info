@@ -23,7 +23,7 @@ const Carpark = sequelize.define(
     free_parking: DataTypes.TEXT,
     night_parking: DataTypes.TEXT,
     car_park_decks: DataTypes.TEXT,
-    gantry_height: DataTypes.TEXT,
+    gantry_height: DataTypes.FLOAT,
     car_park_basement: DataTypes.TEXT,
   },
   { timestamps: false, initialAutoIncrement: 1000 }

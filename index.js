@@ -3,6 +3,7 @@ const cron = require("node-cron");
 const fs = require("fs");
 const csv = require("fast-csv");
 const bodyParser = require("body-parser");
+const { Op } = require("sequelize");
 
 const sequelize = require("./utils/db");
 
@@ -42,7 +43,6 @@ function uploadCsv(uriFile) {
   let fileStream = csv
     .parse()
     .on("data", function (data) {
-      csvDataColl.shift();
       csvDataColl.push({
         car_park_no: data[0],
         address: data[1],
@@ -59,9 +59,10 @@ function uploadCsv(uriFile) {
       });
     })
     .on("end", async function () {
+      csvDataColl.shift();
       const transaction = await sequelize.transaction();
       try {
-        await Carpark.bulkCreate(csvDataColl, { transaction, logging: false });
+        await Carpark.bulkCreate(csvDataColl, { transaction });
         await transaction.commit();
         fs.rename(`./data/${uriFile}`, `./archives/${uriFile}`, (err) => {
           if (err) {
@@ -97,10 +98,19 @@ cron.schedule("*/5 * * * * *", function () {
 });
 
 app.get("/", async (req, res) => {
-  const carparks = await Carpark.findAll();
-  await User.create({
-    Parent_parentId: "935c587f-86ab-4acb-aa11-c63abc2d800e",
-  });
+  let carparks;
+  if (req.query.height) {
+    carparks = await Carpark.findAll({
+      where: {
+        [Op.or]: [
+          { gantry_height: { [Op.gt]: +req.query.height } },
+          { gantry_height: 0 },
+        ],
+      },
+    });
+  } else {
+    carparks = await Carpark.findAll();
+  }
   res.status(200).json({ data: carparks });
 });
 
