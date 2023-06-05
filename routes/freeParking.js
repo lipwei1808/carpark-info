@@ -4,6 +4,15 @@ const { Op } = require("sequelize");
 
 const Carpark = require("../models/carpark");
 
+/**
+ * @swagger
+ * /freeParking:
+ *   get:
+ *     summary: Retrieve a list of carparks that offer freeparking
+ *     responses:
+ *      200:
+ *        description: ok
+ */
 router.get("/", async (_, res) => {
   let freeCarparks;
   try {

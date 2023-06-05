@@ -3,6 +3,12 @@ const router = express.Router();
 
 const Carpark = require("../models/carpark");
 
+/**
+ * @swagger
+ * /nightParking:
+ *   get:
+ *     summary: Retrieve a list of carparks that offers night parking
+ */
 router.get("/", async (_, res) => {
   let carparks;
   try {

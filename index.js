@@ -1,22 +1,41 @@
 const express = require("express");
 const cron = require("node-cron");
 const fs = require("fs");
-const csv = require("fast-csv");
 const bodyParser = require("body-parser");
 const { Op } = require("sequelize");
+const swaggerJSDoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
 
 const sequelize = require("./utils/db");
+const helper = require("./utils/helper");
 
 const Carpark = require("./models/carpark");
 const User = require("./models/user");
-const UserCarpark = require("./models/userCarpark");
+require("./models/userCarpark");
 
+const carparkRouter = require("./routes/carpark");
 const freeParkingRouter = require("./routes/freeParking");
 const nightParkingRouter = require("./routes/nightParking");
 const userRouter = require("./routes/user");
 
 const app = express();
 const port = 8000;
+
+const swaggerDefinition = {
+  openapi: "3.0.0",
+  info: {
+    title: "Carpark App",
+    version: "1.0.0",
+  },
+};
+
+const options = {
+  swaggerDefinition,
+  // Paths to files containing OpenAPI definitions
+  apis: ["./routes/*.js"],
+};
+
+const swaggerSpec = swaggerJSDoc(options);
 
 app.use(bodyParser.json());
 
@@ -36,48 +55,6 @@ Carpark.belongsToMany(User, {
   through: "User_Carparks",
 });
 
-function uploadCsv(uriFile) {
-  let stream = fs.createReadStream(`./data/${uriFile}`);
-  let csvDataColl = [];
-  console.log("uploading csv");
-  let fileStream = csv
-    .parse()
-    .on("data", function (data) {
-      csvDataColl.push({
-        car_park_no: data[0],
-        address: data[1],
-        x_coord: data[2],
-        y_coord: data[3],
-        car_park_type: data[4],
-        type_of_parking_system: data[5],
-        short_term_parking: data[6],
-        free_parking: data[7],
-        night_parking: data[8],
-        car_park_decks: data[9],
-        gantry_height: data[10],
-        car_park_basement: data[11],
-      });
-    })
-    .on("end", async function () {
-      csvDataColl.shift();
-      const transaction = await sequelize.transaction();
-      try {
-        await Carpark.bulkCreate(csvDataColl, { transaction });
-        await transaction.commit();
-        fs.rename(`./data/${uriFile}`, `./archives/${uriFile}`, (err) => {
-          if (err) {
-            console.log("ersror shifting file to archive");
-          }
-        });
-      } catch (e) {
-        await transaction.rollback();
-        console.log("error occured", e);
-      }
-    });
-
-  stream.pipe(fileStream);
-}
-
 //send email after 5 seconds
 cron.schedule("*/5 * * * * *", function () {
   const today = new Date();
@@ -93,32 +70,27 @@ cron.schedule("*/5 * * * * *", function () {
   todayDate = "20220824";
   const fileName = `hdb-carpark-information-${todayDate}010400.csv`;
   if (fs.existsSync(`./data/${fileName}`)) {
-    uploadCsv(fileName);
+    console.log("Attempt");
+    helper.uploadCsv(fileName);
   }
 });
 
-app.get("/", async (req, res) => {
-  let carparks;
-  if (req.query.height) {
-    carparks = await Carpark.findAll({
-      where: {
-        [Op.or]: [
-          { gantry_height: { [Op.gt]: +req.query.height } },
-          { gantry_height: 0 },
-        ],
-      },
-    });
-  } else {
-    carparks = await Carpark.findAll();
-  }
-  res.status(200).json({ data: carparks });
-});
+/**
+ * @swagger
+ * /users:
+ *   get:
+ *     summary: Retrieve a list of JSONPlaceholder users
+ *     description: Retrieve a list of users from JSONPlaceholder. Can be used to populate a list of fake users when prototyping or testing an API.
+ */
+app.get("/", carparkRouter);
 
 app.use("/freeParking", freeParkingRouter);
 
 app.use("/nightParking", nightParkingRouter);
 
 app.use("/users", userRouter);
+
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.listen(port, () => {
   console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
